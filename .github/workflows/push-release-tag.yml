@@ -1,0 +1,108 @@
+name: Push Release Tag Staging & Production
+
+on:
+  pull_request:
+    branches:
+      - rc
+      - release
+    types: [closed]
+
+concurrency:
+  group: staging-build
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    outputs:
+      version: ${{ steps.release_version.outputs.version }}
+    steps:
+      - name: Extract Version from PR title
+        id: release_version
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          VERSION=$(echo "$TITLE" | grep -oE 'v[0-9]+\.[0-9]+(-beta\.[0-9]+|-hotfix\.[0-9]+)?' || true)
+          echo "version=$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  push-release:
+    needs: setup
+    runs-on: ubuntu-latest
+    if: needs.setup.outputs.version != ''
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Set base and head commit SHA
+        id: branch_info
+        run: |
+          echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          echo "head=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog (Node.js)
+        run: |
+          node ./scripts/versioning/generate-changelog.js \
+            ${{ steps.branch_info.outputs.base }} \
+            ${{ steps.branch_info.outputs.head }} \
+            CHANGELOG.md \
+            ${{ needs.setup.outputs.version }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.setup.outputs.version }}"
+          if [[ "${{ github.event.pull_request.base.ref }}" == "release" ]]; then
+            gh release create "$VERSION" --title "$VERSION" --notes-file CHANGELOG_temp.md
+          else
+            gh release create "$VERSION" --title "$VERSION" --notes-file CHANGELOG_temp.md --prerelease
+          fi
+      
+      - name: Conditionally Cherry-pick to Main and Push Tag to RC
+        if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔥 Hotfix detected: cherry-pick to main and push to rc..."
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          COMMIT_SHA="${{ steps.branch_info.outputs.head }}"
+
+          # Cherry-pick hotfix to main
+          git fetch origin main
+          git checkout main
+          git cherry-pick "$COMMIT_SHA" --no-commit
+          git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into main"
+          git push origin HEAD:main
+
+          # Cherry-pick hotfix to rc
+          git fetch origin rc
+          git checkout rc
+          git cherry-pick "$COMMIT_SHA" --no-commit
+          git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into rc"
+          git push origin HEAD:rc
+
+
+          # Generate new patch version for RC
+          NEW_VERSION=$(node ./scripts/versioning/generate-version.js patch rc)
+
+          # Create a prerelease tag on RC
+          git tag "$NEW_VERSION"
+          git push origin "$NEW_VERSION"
+
+          # Create GitHub prerelease
+          gh release create "$NEW_VERSION" --title "$NEW_VERSION" --notes-file CHANGELOG_temp.md --prerelease
