@@ -70,39 +70,39 @@ jobs:
             gh release create "$VERSION" --title "$VERSION" --notes-file CHANGELOG_temp.md --prerelease
           fi
       
-      - name: Conditionally Cherry-pick to Main and Push Tag to RC
+      - name: Conditionally Cherry-pick to Main and Tag RC
         if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "🔥 Hotfix detected: cherry-pick to main and push to rc..."
-
+          echo "🔥 Hotfix detected: cherry-pick to main and propagate to rc..."
+      
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
+      
           COMMIT_SHA="${{ steps.branch_info.outputs.head }}"
-
-          # Cherry-pick hotfix to main
+      
+          # === Cherry-pick hotfix to main ===
           git fetch origin main
           git checkout main
           git cherry-pick "$COMMIT_SHA" --no-commit
           git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into main"
           git push origin HEAD:main
-
-          # Cherry-pick hotfix to rc
+      
+          # === Update rc branch by merging from release ===
           git fetch origin rc
           git checkout rc
-          git cherry-pick "$COMMIT_SHA" --no-commit
-          git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into rc"
+          git merge origin/release -m "chore: merge hotfix $VERSION from release to rc"
           git push origin HEAD:rc
 
-
-          # Generate new patch version for RC
-          NEW_VERSION=$(node ./scripts/versioning/generate-version.js patch rc)
-
-          # Create a prerelease tag on RC
-          git tag "$NEW_VERSION"
-          git push origin "$NEW_VERSION"
-
+      
+          # === Generate new patch version tag on rc ===
+          BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc)
+      
+          # Create tag on rc
+          git tag "$BETA_VERSION"
+          git push origin "$BETA_VERSION"
+      
           # Create GitHub prerelease
-          gh release create "$NEW_VERSION" --title "$NEW_VERSION" --notes-file CHANGELOG_temp.md --prerelease
+          gh release create "$BETA_VERSION" --title "$BETA_VERSION" --notes-file CHANGELOG_temp.md --prerelease
+      
