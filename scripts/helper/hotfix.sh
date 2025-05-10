@@ -43,7 +43,7 @@ elif git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; th
 else
   echo "🆕 Branch $BRANCH_NAME does not exist. Creating from origin/release..."
   git fetch origin release
-  git checkout -b "$BRANCH_NAME" origin/release
+  git checkout -b "$BRANCH_NAME"
 fi
 
 echo "✅ Now on branch: $(git symbolic-ref --short HEAD)"
