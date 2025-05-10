@@ -97,7 +97,7 @@ jobs:
 
       
           # === Generate new patch version tag on rc ===
-          BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc)
+          BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
       
           # Create tag on rc
           git tag "$BETA_VERSION"
