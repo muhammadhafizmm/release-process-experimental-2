@@ -21,9 +21,9 @@ if [[ -z "$GIT_NAME" || -z "$GIT_EMAIL" ]]; then
 fi
 
 # === Sync branches if sync.sh exists ===
-if [ -f ./sync.sh ]; then
+if [ -f ./scripts/helper/sync.sh ]; then
   echo "🔄  Syncing branches: release, rc, main..."
-  ./sync.sh > /dev/null 2>&1
+  ./scripts/helper/sync.sh > /dev/null 2>&1
 fi
 
 # === Ensure working directory is clean ===

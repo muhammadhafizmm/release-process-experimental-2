@@ -36,9 +36,9 @@ if [[ -z "$GIT_NAME" || -z "$GIT_EMAIL" ]]; then
 fi
 
 # === Sync release, rc, main branches ===
-if [ -f ./sync.sh ]; then
+if [ -f ./scripts/helper/sync.sh ]; then
   echo "🔄  Syncing branches: release, rc, main..."
-  ./sync.sh > /dev/null 2>&1
+  ./scripts/helper/sync.sh > /dev/null 2>&1
 fi
 
 # === Prepare rc branch ===
