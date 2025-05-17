@@ -1,0 +1,20 @@
+name: Build & Deploy Next.js App (Mock)
+description: Placeholder for build and deploy logic
+
+inputs:
+  stage:
+    required: true
+  service:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - run: echo "🧱 TODO: Build app for ${{ inputs.stage }} environment"
+      shell: bash
+
+    - run: echo "🚀 TODO: Deploy to ${{ inputs.stage }} with proper AWS profile"
+      shell: bash
+
+    - run: echo "📦 TODO: Upload sourcemaps for ${{ inputs.service }}"
+      shell: bash
