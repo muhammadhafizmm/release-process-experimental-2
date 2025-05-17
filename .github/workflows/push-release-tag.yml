@@ -69,6 +69,7 @@ jobs:
           else
             gh release create "$VERSION" --title "$VERSION" --notes-file CHANGELOG_temp.md --prerelease
           fi
+          rm -f CHANGELOG.md CHANGELOG_temp.md > /dev/null 2>&1
       
       - name: Conditionally Cherry-pick to Main and Tag RC
         if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
@@ -76,33 +77,72 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "🔥 Hotfix detected: cherry-pick to main and propagate to rc..."
-      
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      
+
           COMMIT_SHA="${{ steps.branch_info.outputs.head }}"
-      
-          # === Cherry-pick hotfix to main ===
+          FAILED=""
+          MERGE_RC_SUCCESS=true
+
+          # === Cherry-pick to main ===
           git fetch origin main
           git checkout main
-          git cherry-pick "$COMMIT_SHA" --no-commit
-          git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into main"
-          git push origin HEAD:main
-      
-          # === Update rc branch by merging from release ===
+
+          echo "🍒 Trying to cherry-pick $COMMIT_SHA..."
+          if git cherry-pick "$COMMIT_SHA" --no-commit > /dev/null 2>&1; then
+            if [[ -n "$(git status --porcelain)" ]]; then
+              echo "✅ Cherry-pick applied. Committing and pushing..."
+              git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into main"
+              git push origin HEAD:main > /dev/null 2>&1
+            else
+              echo "⚠️  No changes from cherry-pick. Skipping commit."
+              git cherry-pick --abort || true
+            fi
+          else
+            echo "❌ Cherry-pick conflict or duplicate. Skipping commit."
+            git cherry-pick --abort || true
+            FAILED="${FAILED}\n❌ Cherry-pick to 'main' failed — conflict or duplicate commit. Please resolve manually."
+          fi
+
+          # === Merge release into rc ===
           git fetch origin rc
           git checkout rc
-          git merge origin/release -m "chore: merge hotfix $VERSION from release to rc"
-          git push origin HEAD:rc
 
-      
-          # === Generate new patch version tag on rc ===
-          BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
-      
-          # Create tag on rc
-          git tag "$BETA_VERSION"
-          git push origin "$BETA_VERSION"
-      
-          # Create GitHub prerelease
-          gh release create "$BETA_VERSION" --title "$BETA_VERSION" --notes-file CHANGELOG_temp.md --prerelease
-      
+          echo "🔀 Merging origin/release into rc..."
+          if git merge origin/release -m "chore: merge hotfix into rc" > /dev/null 2>&1; then
+            git push origin HEAD:rc > /dev/null 2>&1
+            echo "✅ Merged release into rc and pushed."
+          else
+            echo "❌ Merge conflict on rc."
+            git merge --abort || true
+            MERGE_RC_SUCCESS=false
+            FAILED="${FAILED}\n❌ Merge to 'rc' failed — please resolve conflict manually."
+          fi
+
+          # === Generate version tag only if merge success ===
+          if [ "$MERGE_RC_SUCCESS" = true ]; then
+            BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
+
+            if [[ -z "$BETA_VERSION" ]]; then
+              FAILED="${FAILED}\n❌ Failed to generate version tag."
+            else
+              echo "🏷️  Tagging rc with version $BETA_VERSION..."
+              git tag "$BETA_VERSION"
+              git push origin "$BETA_VERSION" > /dev/null 2>&1
+
+              echo "📦  Creating GitHub prerelease..."
+              gh release create "$BETA_VERSION" --title "$BETA_VERSION" --notes-file CHANGELOG_temp.md --prerelease > /dev/null 2>&1
+            fi
+          else
+            echo "⚠️  Skipping tag + release due to rc merge failure."
+          fi
+
+          # === Final error report ===
+          if [ -n "$FAILED" ]; then
+            echo -e "\n🚨 ERRORS DETECTED DURING HOTFIX PROCESS:"
+            echo -e "$FAILED"
+            exit 1
+          fi
+
+          echo "✅ Hotfix flow completed successfully."
