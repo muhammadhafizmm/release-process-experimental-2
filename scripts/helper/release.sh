@@ -3,17 +3,30 @@ set -e
 
 MODE=$1
 
-# === Parse hotfix mode with optional target branch ===
+# === Parse hotfix mode with required target branch ===
 if [[ "$MODE" == --hotfix=* ]]; then
   HOTFIX_MODE=true
   TARGET_BRANCH="${MODE#--hotfix=}"
+
+  if [[ -z "$TARGET_BRANCH" ]]; then
+    echo "❌  Missing target branch for hotfix."
+    echo "ℹ️   Usage: $0 --hotfix=<TARGET_BRANCH>"
+    exit 1
+  fi
 elif [[ "$MODE" == "--hotfix" ]]; then
-  HOTFIX_MODE=true
-  TARGET_BRANCH=""
+  echo "❌  Invalid hotfix usage: missing target branch."
+  echo "ℹ️   Usage: $0 --hotfix=<TARGET_BRANCH>"
+  exit 1
 else
   HOTFIX_MODE=false
   VERSION_TYPE=$MODE
+  if [[ "$VERSION_TYPE" != "major" && "$VERSION_TYPE" != "patch" ]]; then
+    echo "❌  Invalid version type: '$VERSION_TYPE'"
+    echo "ℹ️   Accepted values: major | patch"
+    exit 1
+  fi
 fi
+
 
 # === Ensure working directory is clean ===
 if [[ -n "$(git status --porcelain)" ]]; then
