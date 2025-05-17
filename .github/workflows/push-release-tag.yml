@@ -103,6 +103,7 @@ jobs:
             fi
           else
             echo "❌ Cherry-pick failed. Conflict or duplicate."
+            git cherry-pick --abort || true
             FAILED="${FAILED}\n❌ Cherry-pick to 'main' failed — please resolve manually."
           fi
 
