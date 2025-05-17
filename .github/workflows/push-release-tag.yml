@@ -107,6 +107,11 @@ jobs:
             FAILED="${FAILED}\n❌ Cherry-pick to 'main' failed — please resolve manually."
           fi
 
+          # === Ensure working tree is clean before merge to rc ===
+          echo "🧹 Cleaning up working directory before switching to rc..."
+          git reset --hard HEAD
+          git clean -fd
+
           # === Merge release into rc ===
           git fetch origin rc
           git checkout rc
