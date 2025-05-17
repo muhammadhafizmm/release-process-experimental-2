@@ -101,7 +101,6 @@ jobs:
             fi
           else
             echo "❌ Cherry-pick conflict or duplicate. Skipping commit."
-            git cherry-pick --abort || true
             FAILED="${FAILED}\n❌ Cherry-pick to 'main' failed — conflict or duplicate commit. Please resolve manually."
           fi
 
