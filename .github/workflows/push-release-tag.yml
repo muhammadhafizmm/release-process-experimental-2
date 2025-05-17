@@ -64,13 +64,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.setup.outputs.version }}"
-          if [[ "${{ github.event.pull_request.base.ref }}" == "release" ]]; then
-            gh release create "$VERSION" --title "$VERSION" --notes-file CHANGELOG_temp.md
-          else
-            gh release create "$VERSION" --title "$VERSION" --notes-file CHANGELOG_temp.md --prerelease
-          fi
-          rm -f CHANGELOG.md CHANGELOG_temp.md > /dev/null 2>&1
-      
+          IS_PRODUCTION="${{ github.event.pull_request.base.ref == 'release' }}"
+
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes-file CHANGELOG_temp.md \
+            $([ "$IS_PRODUCTION" = "true" ] || echo "--prerelease")
+
+          rm -f CHANGELOG.md CHANGELOG_temp.md
+
       - name: Conditionally Cherry-pick to Main and Tag RC
         if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
         env:
@@ -89,19 +91,19 @@ jobs:
           git fetch origin main
           git checkout main
 
-          echo "🍒 Trying to cherry-pick $COMMIT_SHA..."
+          echo "🍒 Attempting cherry-pick $COMMIT_SHA..."
           if git cherry-pick "$COMMIT_SHA" --no-commit > /dev/null 2>&1; then
             if [[ -n "$(git status --porcelain)" ]]; then
-              echo "✅ Cherry-pick applied. Committing and pushing..."
+              echo "✅ Cherry-pick successful. Committing and pushing..."
               git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into main"
-              git push origin HEAD:main > /dev/null 2>&1
+              git push origin HEAD:main
             else
-              echo "⚠️  No changes from cherry-pick. Skipping commit."
+              echo "⚠️  No changes. Skipping commit."
               git cherry-pick --abort || true
             fi
           else
-            echo "❌ Cherry-pick conflict or duplicate. Skipping commit."
-            FAILED="${FAILED}\n❌ Cherry-pick to 'main' failed — conflict or duplicate commit. Please resolve manually."
+            echo "❌ Cherry-pick failed. Conflict or duplicate."
+            FAILED="${FAILED}\n❌ Cherry-pick to 'main' failed — please resolve manually."
           fi
 
           # === Merge release into rc ===
@@ -110,34 +112,43 @@ jobs:
 
           echo "🔀 Merging origin/release into rc..."
           if git merge origin/release -m "chore: merge hotfix into rc" > /dev/null 2>&1; then
-            git push origin HEAD:rc > /dev/null 2>&1
-            echo "✅ Merged release into rc and pushed."
+            git push origin HEAD:rc
+            echo "✅ Merged release into rc."
           else
-            echo "❌ Merge conflict on rc."
+            echo "❌ Merge conflict in rc."
             git merge --abort || true
             MERGE_RC_SUCCESS=false
-            FAILED="${FAILED}\n❌ Merge to 'rc' failed — please resolve conflict manually."
+            FAILED="${FAILED}\n❌ Merge to 'rc' failed — please resolve manually."
           fi
 
-          # === Generate version tag only if merge success ===
+          # === Tag & Create RC Pre-release ===
           if [ "$MERGE_RC_SUCCESS" = true ]; then
             BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
 
             if [[ -z "$BETA_VERSION" ]]; then
               FAILED="${FAILED}\n❌ Failed to generate version tag."
             else
-              echo "🏷️  Tagging rc with version $BETA_VERSION..."
+              echo "🏷️  Tagging rc with $BETA_VERSION..."
               git tag "$BETA_VERSION"
-              git push origin "$BETA_VERSION" > /dev/null 2>&1
+              git push origin "$BETA_VERSION"
 
-              echo "📦  Creating GitHub prerelease..."
-              gh release create "$BETA_VERSION" --title "$BETA_VERSION" --notes-file CHANGELOG_temp.md --prerelease > /dev/null 2>&1
+              node ./scripts/versioning/generate-changelog.js \
+                ${{ steps.branch_info.outputs.base }} \
+                ${{ steps.branch_info.outputs.head }} \
+                CHANGELOG.md \
+                "$BETA_VERSION"
+
+              echo "📦 Creating GitHub prerelease..."
+              gh release create "$BETA_VERSION" \
+                --title "$BETA_VERSION" \
+                --notes-file CHANGELOG_temp.md \
+                --prerelease
             fi
           else
-            echo "⚠️  Skipping tag + release due to rc merge failure."
+            echo "⚠️  Skipping tag & release due to merge failure."
           fi
 
-          # === Final error report ===
+          # === Final Error Report ===
           if [ -n "$FAILED" ]; then
             echo -e "\n🚨 ERRORS DETECTED DURING HOTFIX PROCESS:"
             echo -e "$FAILED"
