@@ -102,8 +102,8 @@ jobs:
               git cherry-pick --abort || true
             fi
           else
-            echo "❌ Cherry-pick failed. Conflict or duplicate."
-            FAILED="${FAILED}\n❌ Cherry-pick to 'main' failed — please resolve manually."
+            echo "❌ Cherry-pick conflict or duplicate. Skipping commit."
+            FAILED="${FAILED}\n❌ Cherry-pick to 'main' failed — conflict or duplicate commit. Please resolve manually."
           fi
 
           # === Merge release into rc ===
