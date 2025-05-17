@@ -1,0 +1,48 @@
+name: Build and Deploy Next.js App on GitHub Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Next.js Project
+        uses: ./.github/actions/setup-nextjs
+    
+  build-deploy-staging:
+    if: ${{ github.event.release.prerelease }}
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Build and Deploy Staging
+        uses: ./.github/actions/build-deploy-nextjs
+        with:
+            stage: rc
+            service: corporate-travel-staging-web
+
+  build-deploy-production:
+    if: ${{ !github.event.release.prerelease }}
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Build and Deploy Production
+        uses: ./.github/actions/build-deploy-nextjs
+        with:
+          stage: release
+          service: corporate-travel-web
+
+  build-deploy-demo:
+    if: ${{ !github.event.release.prerelease }}
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: demo
+    steps:
+      - name: Build and Deploy Demo
+        uses: ./.github/actions/build-deploy-nextjs
+        with:
+          stage: demo
+          service: corporate-travel-demo-web
