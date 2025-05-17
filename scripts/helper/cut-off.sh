@@ -63,11 +63,26 @@ fi
 
 echo "✅  Next version: $VERSION"
 
-# === Create & push new branch ===
+# === Create & push new branch (replace if exists) ===
 BRANCH_NAME="cut-off/${VERSION}"
-echo "🌿  Creating branch: $BRANCH_NAME"
+echo "🌿 Creating branch: $BRANCH_NAME"
+
+# Check if local branch exists and delete it
+if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
+  echo "🧹 Deleting existing local branch $BRANCH_NAME..."
+  git branch -D "$BRANCH_NAME"
+fi
+
+# Check if remote branch exists and delete it
+if git ls-remote --exit-code --heads origin "$BRANCH_NAME" > /dev/null 2>&1; then
+  echo "🧹 Deleting existing remote branch $BRANCH_NAME..."
+  git push origin --delete "$BRANCH_NAME" > /dev/null 2>&1
+fi
+
+# Create new branch and push
 git checkout -b "$BRANCH_NAME" > /dev/null 2>&1
 git push -u origin "$BRANCH_NAME" > /dev/null 2>&1
+echo "✅ Branch $BRANCH_NAME created and pushed."
 
 # === Create pull request to RC ===
 echo "🚀  Creating pull request to 'rc' branch..."
