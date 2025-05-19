@@ -3,13 +3,14 @@ name: Build and Deploy Staging
 on:
   push:
     tags:
-      - "v*.*-beta.*"
-  workflow_dispatch:
+      - "v[0-9]+.[0-9]+-beta.*"
 
 jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Setup Next.js Project
         uses: ./.github/actions/setup-nextjs
 
@@ -18,8 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Build and Deploy Staging
-        uses: ./.github/actions/build-deploy-nextjs
+        uses: ./.github/actions/build-and-deploy-nextjs
         with:
           stage: rc
           service: corporate-travel-staging-web
