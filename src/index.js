@@ -1,7 +1,7 @@
 const http = require("http");
 const url = require("url");
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3002;
 
 const server = http.createServer((req, res) => {
   const { pathname } = url.parse(req.url, true);
@@ -9,7 +9,7 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "application/json" });
 
   if (pathname === "/ping") {
-    res.end(JSON.stringify({ message: "pong" }));
+    res.end(JSON.stringify({ message: "POOOONNNGGGG" }));
   } else {
     res.end(JSON.stringify({ message: "Hello from Node.js!" }));
   }
