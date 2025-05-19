@@ -75,7 +75,6 @@ jobs:
           gh release create "$VERSION" \
             --title "$VERSION" \
             --notes-file CHANGELOG_temp.md \
-            --target "$VERSION" \
             $([ "$IS_PRODUCTION" = "true" ] || echo "--prerelease")
 
           rm -f CHANGELOG.md CHANGELOG_temp.md
