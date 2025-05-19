@@ -7,10 +7,6 @@ on:
       - release
     types: [closed]
 
-concurrency:
-  group: staging-build
-  cancel-in-progress: true
-
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -73,95 +69,177 @@ jobs:
 
           rm -f CHANGELOG.md CHANGELOG_temp.md
 
-      - name: Conditionally Cherry-pick to Main and Tag RC
-        if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
-        env:
-          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        run: |
-          echo "🔥 Hotfix detected: cherry-pick to main and propagate to rc..."
+  hotfix-propagation:
+    needs: [setup, push-release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+    outputs:
+      errors: ${{ steps.collect_errors.outputs.errors }}
 
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
 
-          COMMIT_SHA="${{ steps.branch_info.outputs.head }}"
-          FAILED=""
-          MERGE_RC_SUCCESS=true
+      - name: Initialize error tracking
+        id: init_errors
+        run: |
+          echo "errors=" >> $GITHUB_OUTPUT
+          echo "errors_found=false" >> $GITHUB_OUTPUT
 
-          # === Cherry-pick to main ===
+      - name: Cherry-pick to Main
+        id: cherry_pick_main
+        continue-on-error: true
+        run: |
+          COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+
+          echo "🍒 Attempting cherry-pick $COMMIT_SHA to main..."
           git fetch origin main
           git checkout main
 
-          echo "🍒 Attempting cherry-pick $COMMIT_SHA..."
           if git cherry-pick "$COMMIT_SHA" --no-commit > /dev/null 2>&1; then
             if [[ -n "$(git status --porcelain)" ]]; then
               echo "✅ Cherry-pick successful. Committing and pushing..."
               git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into main"
               git push origin HEAD:main
+              echo "success=true" >> $GITHUB_OUTPUT
             else
-              echo "⚠️  No changes. Skipping commit."
+              echo "⚠️ No changes. Skipping commit."
               git cherry-pick --abort || true
+              echo "success=true" >> $GITHUB_OUTPUT  # Still consider as success, just no changes needed
             fi
           else
             echo "❌ Cherry-pick failed. Conflict or duplicate."
             git cherry-pick --abort || true
-            FAILED="${FAILED}\n❌ Cherry-pick to 'main' failed — please resolve manually."
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "error_message=Cherry-pick to 'main' failed — please resolve manually." >> $GITHUB_OUTPUT
           fi
 
-          # === Ensure working tree is clean before merge to rc ===
+      - name: Update error tracking after cherry-pick
+        if: steps.cherry_pick_main.outputs.success == 'false'
+        run: |
+          echo "errors_found=true" >> $GITHUB_ENV
+          echo "ERRORS<<EOF" >> $GITHUB_ENV
+          echo "❌ ${{ steps.cherry_pick_main.outputs.error_message }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Clean Working Tree
+        run: |
           echo "🧹 Cleaning up working directory before switching to rc..."
           git reset --hard HEAD
           git clean -fd
 
-          # === Merge release into rc ===
+      - name: Merge Release into RC
+        id: merge_rc
+        continue-on-error: true
+        run: |
+          echo "🔀 Merging origin/release into rc..."
           git fetch origin rc
           git checkout rc
 
-          echo "🔀 Merging origin/release into rc..."
           if git merge origin/release -m "chore: merge hotfix into rc" > /dev/null 2>&1; then
             git push origin HEAD:rc
             echo "✅ Merged release into rc."
+            echo "success=true" >> $GITHUB_OUTPUT
           else
             echo "❌ Merge conflict in rc."
             git merge --abort || true
-            MERGE_RC_SUCCESS=false
-            FAILED="${FAILED}\n❌ Merge to 'rc' failed — please resolve manually."
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "error_message=Merge to 'rc' failed — please resolve manually." >> $GITHUB_OUTPUT
           fi
 
-          # === Tag & Create RC Pre-release ===
-          if [ "$MERGE_RC_SUCCESS" = true ]; then
-            BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
-
-            if [[ -z "$BETA_VERSION" ]]; then
-              FAILED="${FAILED}\n❌ Failed to generate version tag."
-            else
-              echo "📦 Creating GitHub prerelease for rc..."
-              git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
-              
-              echo "🏷️  Tagging rc with $BETA_VERSION..."
-              git tag "$BETA_VERSION"
-              git push origin "$BETA_VERSION"
-
-              node ./scripts/versioning/generate-changelog.js \
-                ${{ steps.branch_info.outputs.base }} \
-                ${{ steps.branch_info.outputs.head }} \
-                CHANGELOG.md \
-                "$BETA_VERSION"
-
-              echo "📦 Creating GitHub prerelease..."
-              gh release create "$BETA_VERSION" \
-                --title "$BETA_VERSION" \
-                --notes-file CHANGELOG_temp.md \
-                --prerelease
-            fi
+      - name: Update error tracking after RC merge
+        if: steps.merge_rc.outputs.success == 'false'
+        run: |
+          echo "errors_found=true" >> $GITHUB_ENV
+          if [ -n "$ERRORS" ]; then
+            echo "ERRORS<<EOF" >> $GITHUB_ENV
+            echo "$ERRORS" >> $GITHUB_ENV
+            echo "❌ ${{ steps.merge_rc.outputs.error_message }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
           else
-            echo "⚠️  Skipping tag & release due to merge failure."
+            echo "ERRORS<<EOF" >> $GITHUB_ENV
+            echo "❌ ${{ steps.merge_rc.outputs.error_message }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
           fi
 
-          # === Final Error Report ===
-          if [ -n "$FAILED" ]; then
-            echo -e "\n🚨 ERRORS DETECTED DURING HOTFIX PROCESS:"
-            echo -e "$FAILED"
-            exit 1
+      - name: Create RC Prerelease Tag
+        id: create_rc_tag
+        if: steps.merge_rc.outputs.success == 'true'
+        continue-on-error: true
+        run: |
+          BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
+
+          if [[ -z "$BETA_VERSION" ]]; then
+            echo "❌ Failed to generate version tag."
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "error_message=Failed to generate version tag." >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-          echo "✅ Hotfix flow completed successfully."
+          echo "📦 Creating GitHub prerelease for rc..."
+          echo "🏷️ Tagging rc with $BETA_VERSION..."
+          git tag "$BETA_VERSION"
+          git push origin "$BETA_VERSION"
+
+          node ./scripts/versioning/generate-changelog.js \
+            ${{ github.event.pull_request.base.sha }} \
+            ${{ github.event.pull_request.head.sha }} \
+            CHANGELOG.md \
+            "$BETA_VERSION"
+
+          echo "📦 Creating GitHub prerelease..."
+          gh release create "$BETA_VERSION" \
+            --title "$BETA_VERSION" \
+            --notes-file CHANGELOG_temp.md \
+            --prerelease
+
+          echo "success=true" >> $GITHUB_OUTPUT
+
+      - name: Update error tracking after RC tag
+        if: steps.create_rc_tag.outputs.success == 'false'
+        run: |
+          echo "errors_found=true" >> $GITHUB_ENV
+          if [ -n "$ERRORS" ]; then
+            echo "ERRORS<<EOF" >> $GITHUB_ENV
+            echo "$ERRORS" >> $GITHUB_ENV
+            echo "❌ ${{ steps.create_rc_tag.outputs.error_message }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            echo "ERRORS<<EOF" >> $GITHUB_ENV
+            echo "❌ ${{ steps.create_rc_tag.outputs.error_message }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
+
+      - name: Collect All Errors
+        id: collect_errors
+        run: |
+          if [ "${{ env.errors_found }}" == "true" ]; then
+            echo "errors=${{ env.ERRORS }}" >> $GITHUB_OUTPUT
+            echo "has_errors=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Hotfix flow completed successfully."
+            echo "has_errors=false" >> $GITHUB_OUTPUT
+          fi
+
+  final-error-report:
+    needs: hotfix-propagation
+    runs-on: ubuntu-latest
+    if: needs.hotfix-propagation.outputs.errors != ''
+    steps:
+      - name: Display Error Report
+        run: |
+          echo -e "\n🚨 ERRORS DETECTED DURING HOTFIX PROCESS:"
+          echo -e "${{ needs.hotfix-propagation.outputs.errors }}"
+          exit 1
