@@ -59,6 +59,12 @@ jobs:
             CHANGELOG.md \
             ${{ needs.setup.outputs.version }}
 
+      - name: Create and Push Git Tag
+        run: |
+          VERSION="${{ needs.setup.outputs.version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
