@@ -1,17 +1,17 @@
-const http = require('http');
-const url = require('url');
+const http = require("http");
+const url = require("url");
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 const server = http.createServer((req, res) => {
   const { pathname } = url.parse(req.url, true);
 
-  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.writeHead(200, { "Content-Type": "application/json" });
 
-  if (pathname === '/ping') {
-    res.end(JSON.stringify({ message: 'pong' }));
+  if (pathname === "/ping") {
+    res.end(JSON.stringify({ message: "pong" }));
   } else {
-    res.end(JSON.stringify({ message: 'Hello from Node.js!' }));
+    res.end(JSON.stringify({ message: "Hello from Node.js!" }));
   }
 });
 
