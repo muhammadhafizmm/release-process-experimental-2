@@ -1,0 +1,24 @@
+name: Build and Deploy Staging
+
+on:
+  push:
+    tags:
+      - "v*.*-beta.*"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Next.js Project
+        uses: ./.github/actions/setup-nextjs
+
+  build-deploy-staging:
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Build and Deploy Staging
+        uses: ./.github/actions/build-deploy-nextjs
+        with:
+          stage: rc
+          service: corporate-travel-staging-web
