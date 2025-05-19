@@ -91,7 +91,6 @@ jobs:
           echo "🔧 Configure Git"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
 
           echo "🍒 Cherry-picking $COMMIT_SHA to main..."
           git fetch origin main
@@ -100,6 +99,7 @@ jobs:
           if git cherry-pick "$COMMIT_SHA" --no-commit > /dev/null 2>&1; then
             if [[ -n "$(git status --porcelain)" ]]; then
               git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into main"
+              git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
               git push origin HEAD:main
               echo "✅ Cherry-pick successful."
             else
@@ -162,5 +162,6 @@ jobs:
           gh release create "$BETA_VERSION" \
             --title "$BETA_VERSION" \
             --notes-file CHANGELOG_temp.md \
-            --prerelease
+            --prerelease \
+            --target rc
         
