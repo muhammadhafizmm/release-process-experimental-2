@@ -3,8 +3,8 @@ name: Build and Deploy Production
 on:
   push:
     tags:
-      - "v*.*"
-      - "v*.*-hotfix.*"
+      - "v[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+-hotfix.*"
 
 jobs:
   setup:
@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Build and Deploy Production
         uses: ./.github/actions/build-deploy-nextjs
         with:
@@ -29,6 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: demo
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Build and Deploy Demo
         uses: ./.github/actions/build-deploy-nextjs
         with:
