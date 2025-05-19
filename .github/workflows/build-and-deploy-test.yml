@@ -1,0 +1,28 @@
+name: Build and Deploy Test
+
+on:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Next.js Project
+        uses: ./.github/actions/setup-nextjs
+
+  build-deploy-test:
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Build and Deploy Test
+        uses: ./.github/actions/build-and-deploy-nextjs
+        with:
+          stage: main
+          service: corporate-travel-test-web
