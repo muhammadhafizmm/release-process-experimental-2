@@ -134,6 +134,9 @@ jobs:
             if [[ -z "$BETA_VERSION" ]]; then
               FAILED="${FAILED}\n❌ Failed to generate version tag."
             else
+              echo "📦 Creating GitHub prerelease for rc..."
+              git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
+              
               echo "🏷️  Tagging rc with $BETA_VERSION..."
               git tag "$BETA_VERSION"
               git push origin "$BETA_VERSION"
