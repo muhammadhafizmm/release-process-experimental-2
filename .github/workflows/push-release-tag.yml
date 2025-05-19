@@ -59,6 +59,12 @@ jobs:
             CHANGELOG.md \
             ${{ needs.setup.outputs.version }}
 
+      - name: Create and Push Git Tag
+        run: |
+          VERSION="${{ needs.setup.outputs.version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,6 +75,7 @@ jobs:
           gh release create "$VERSION" \
             --title "$VERSION" \
             --notes-file CHANGELOG_temp.md \
+            --target "$VERSION" \
             $([ "$IS_PRODUCTION" = "true" ] || echo "--prerelease")
 
           rm -f CHANGELOG.md CHANGELOG_temp.md
