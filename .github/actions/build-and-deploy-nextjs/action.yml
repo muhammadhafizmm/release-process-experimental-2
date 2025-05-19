@@ -3,18 +3,23 @@ description: Placeholder for build and deploy logic
 
 inputs:
   stage:
+    description: "The deployment stage (e.g., dev, staging, prod)"
     required: true
   service:
+    description: "The service name (e.g., web, api)"
     required: true
 
 runs:
-  using: composite
+  using: "composite"
   steps:
-    - run: echo "🧱 TODO: Build app for ${{ inputs.stage }} environment"
+    - run: |
+        echo "🧱 TODO: Build app for ${{ inputs.stage }} environment"
       shell: bash
 
-    - run: echo "🚀 TODO: Deploy to ${{ inputs.stage }} with proper AWS profile"
+    - run: |
+        echo "🚀 TODO: Deploy to ${{ inputs.stage }} with proper AWS profile"
       shell: bash
 
-    - run: echo "📦 TODO: Upload sourcemaps for ${{ inputs.service }}"
+    - run: |
+        echo "📦 TODO: Upload sourcemaps for ${{ inputs.service }}"
       shell: bash
