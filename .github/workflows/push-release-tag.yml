@@ -98,6 +98,10 @@ jobs:
         run: |
           COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
 
+          echo "🔀 Setting github config..."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
           echo "🍒 Attempting cherry-pick $COMMIT_SHA to main..."
           git fetch origin main
           git checkout main
