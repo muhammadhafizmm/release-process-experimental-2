@@ -1,8 +1,10 @@
-name: Build and Deploy Next.js App on GitHub Release
+name: Build and Deploy Production
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+-hotfix.*"
 
 jobs:
   setup:
@@ -10,25 +12,14 @@ jobs:
     steps:
       - name: Setup Next.js Project
         uses: ./.github/actions/setup-nextjs
-    
-  build-deploy-staging:
-    if: ${{ github.event.release.prerelease }}
-    needs: setup
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-      - name: Build and Deploy Staging
-        uses: ./.github/actions/build-deploy-nextjs
-        with:
-            stage: rc
-            service: corporate-travel-staging-web
 
   build-deploy-production:
-    if: ${{ !github.event.release.prerelease }}
     needs: setup
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Build and Deploy Production
         uses: ./.github/actions/build-deploy-nextjs
         with:
@@ -36,11 +27,12 @@ jobs:
           service: corporate-travel-web
 
   build-deploy-demo:
-    if: ${{ !github.event.release.prerelease }}
     needs: setup
     runs-on: ubuntu-latest
     environment: demo
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Build and Deploy Demo
         uses: ./.github/actions/build-deploy-nextjs
         with:

@@ -2,7 +2,7 @@ name: Setup Next.js Project
 description: Minimal setup for mock workflows
 
 runs:
-  using: composite
+  using: "composite"
   steps:
     - uses: actions/setup-node@v4
       with:
@@ -16,5 +16,5 @@ runs:
     - run: pnpm install --frozen-lockfile
       shell: bash
 
-    - run: echo "🛠️ TODO: Setup AWS, GitHub token, submodules, and caching"
+    - run: "echo \"🛠️ TODO: Setup AWS, GitHub token, submodules, and caching\""
       shell: bash
