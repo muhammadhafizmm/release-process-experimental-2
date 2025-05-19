@@ -61,7 +61,7 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.PAT }}
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           VERSION="${{ needs.setup.outputs.version }}"
           IS_PRODUCTION="${{ github.event.pull_request.base.ref == 'release' }}"
@@ -76,7 +76,7 @@ jobs:
       - name: Conditionally Cherry-pick to Main and Tag RC
         if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
         env:
-          GH_TOKEN: ${{ secrets.PAT }}
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           echo "🔥 Hotfix detected: cherry-pick to main and propagate to rc..."
 
