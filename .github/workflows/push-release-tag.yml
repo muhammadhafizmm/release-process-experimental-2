@@ -83,8 +83,6 @@ jobs:
           fetch-depth: 0
 
       - name: Cherry-pick to Main
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
 
@@ -99,7 +97,6 @@ jobs:
           if git cherry-pick "$COMMIT_SHA" --no-commit > /dev/null 2>&1; then
             if [[ -n "$(git status --porcelain)" ]]; then
               git commit -m "chore: cherry-pick hotfix from $COMMIT_SHA into main"
-              git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
               git push origin HEAD:main
               echo "✅ Cherry-pick successful."
             else
@@ -112,6 +109,13 @@ jobs:
             echo "::error::Cherry-pick to 'main' failed — please resolve manually."
             exit 1
           fi
+
+      - name: Trigger Main Workflow Manually
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          gh workflow run build-and-deploy-test.yml --ref main
 
   hotfix-merge-rc-and-tag:
     needs: [ setup, push-release ]
