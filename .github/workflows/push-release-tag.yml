@@ -80,6 +80,16 @@ jobs:
 
           rm -f CHANGELOG.md CHANGELOG_temp.md
 
+      - name: Trigger Build and Deploy Staging Workflow (if pushed in GHA)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ needs.setup.outputs.version }}"
+          echo "🚀 Triggering Build and Deploy Staging workflow for tag: $TAG_NAME"
+
+          # NOTE: This assumes the workflow file name is `build-deploy-staging.yml`
+          gh workflow run "Build and Deploy Staging" --ref "$TAG_NAME"
+
       - name: Conditionally Cherry-pick to Main and Tag RC
         if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
         env:
