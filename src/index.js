@@ -9,7 +9,7 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "application/json" });
 
   if (pathname === "/ping") {
-    res.end(JSON.stringify({ message: "pong" }));
+    res.end(JSON.stringify({ message: "PONG" }));
   } else {
     res.end(JSON.stringify({ message: "Hello from Node.js!" }));
   }
