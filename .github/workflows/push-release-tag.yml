@@ -179,6 +179,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
+          echo "🔀 Checkout to RC"
+          git fetch origin rc
+          git checkout rc
+
           BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
 
           if [[ -z "$BETA_VERSION" ]]; then
