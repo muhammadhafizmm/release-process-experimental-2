@@ -75,8 +75,6 @@ jobs:
     if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
     outputs:
       errors: ${{ steps.collect_errors.outputs.errors }}
 
@@ -85,12 +83,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
 
       - name: Initialize error tracking
         id: init_errors
@@ -101,6 +93,8 @@ jobs:
       - name: Cherry-pick to Main
         id: cherry_pick_main
         continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
 
@@ -178,6 +172,8 @@ jobs:
         id: create_rc_tag
         if: steps.merge_rc.outputs.success == 'true'
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
 
@@ -187,11 +183,6 @@ jobs:
             echo "error_message=Failed to generate version tag." >> $GITHUB_OUTPUT
             exit 0
           fi
-
-          echo "📦 Creating GitHub prerelease for rc..."
-          echo "🏷️ Tagging rc with $BETA_VERSION..."
-          git tag "$BETA_VERSION"
-          git push origin "$BETA_VERSION"
 
           node ./scripts/versioning/generate-changelog.js \
             ${{ github.event.pull_request.base.sha }} \
