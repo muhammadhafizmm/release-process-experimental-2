@@ -10,6 +10,8 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Setup Next.js Project
         uses: ./.github/actions/setup-nextjs
 
@@ -21,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Build and Deploy Production
-        uses: ./.github/actions/build-deploy-nextjs
+        uses: ./.github/actions/build-and-deploy-nextjs
         with:
           stage: release
           service: corporate-travel-web
@@ -34,7 +36,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Build and Deploy Demo
-        uses: ./.github/actions/build-deploy-nextjs
+        uses: ./.github/actions/build-and-deploy-nextjs
         with:
           stage: demo
           service: corporate-travel-demo-web
