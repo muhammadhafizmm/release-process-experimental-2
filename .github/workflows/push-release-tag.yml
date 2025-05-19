@@ -61,13 +61,15 @@ jobs:
         run: |
           VERSION="${{ needs.setup.outputs.version }}"
           IS_PRODUCTION="${{ github.event.pull_request.base.ref == 'release' }}"
-
+          
+          echo "📦 Creating GitHub release $VERSION..."
           gh release create "$VERSION" \
             --title "$VERSION" \
             --notes-file CHANGELOG_temp.md \
-            $([ "$IS_PRODUCTION" = "true" ] || echo "--prerelease")
+            $([ "$IS_PRODUCTION" = "true" ] || echo "--prerelease") > /dev/null 2>&1
 
-          rm -f CHANGELOG.md CHANGELOG_temp.md
+          rm -f CHANGELOG.md CHANGELOG_temp.md > /dev/null 2>&1
+          echo "✨ GitHub release $VERSION created successfully!"
         
   hotfix-cherry-pick-main:
     needs: [ setup, push-release ]
@@ -104,9 +106,28 @@ jobs:
               git cherry-pick --abort || true
             fi
           else
-            echo "❌ Cherry-pick to main failed. Aborting..."
-            git cherry-pick --abort || true
-            echo "::error::Cherry-pick to 'main' failed — please resolve manually."
+            echo "❌ Cherry-pick to main failed due to conflicts!"
+            echo "Conflict details:"
+            git status -s
+            echo ""
+            echo "List of conflicting files:"
+            git diff --name-only --diff-filter=U 2>/dev/null || echo "Unable to determine conflicting files"
+            echo ""
+            echo "::error::Cherry-pick to 'main' failed due to conflicts. Please resolve manually."
+            echo "Please resolve conflicts manually with these steps:"
+            echo "  1. Checkout the 'main' branch"
+            echo "  2. Cherry-pick commit $COMMIT_SHA"
+            echo "  3. Resolve the conflicts that appear"
+            echo "  4. Commit the changes and push to 'main'"
+            
+            # Only abort if there's an actual cherry-pick in progress
+            if git rev-parse CHERRY_PICK_HEAD >/dev/null 2>&1; then
+              echo "Aborting cherry-pick in progress..."
+              git cherry-pick --abort
+            else
+              echo "No cherry-pick in progress to abort."
+            fi
+            
             exit 1
           fi
 
@@ -133,19 +154,25 @@ jobs:
       - name: Merge Release into RC
         run: |
           echo "🔀 Merging origin/release into rc..."
-          git fetch origin rc
-          git checkout rc
+          git fetch origin rc > /dev/null 2>&1
+          git checkout rc > /dev/null 2>&1
 
           if git merge origin/release -m "chore: merge hotfix into rc" > /dev/null 2>&1; then
-            git push origin HEAD:rc
+            git push origin HEAD:rc > /dev/null 2>&1
             echo "✅ Merged successfully."
           else
-            git merge --abort || true
-            echo "::error::Merge to 'rc' failed — please resolve manually."
+            git merge --abort > /dev/null 2>&1 || true
+            echo "❌ Merge to 'rc' failed due to conflicts!"
+            echo "::error::Merge to 'rc' failed due to conflicts. Please resolve manually with these steps:"
+            echo "  1. Checkout the 'rc' branch"
+            echo "  2. Merge the 'release' branch"
+            echo "  3. Resolve the conflicts that appear"
+            echo "  4. Commit the changes and push to 'rc'"
             exit 1
           fi
 
       - name: Create RC Prerelease Tag
+        if: success()
         env:
           GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
@@ -160,12 +187,12 @@ jobs:
             ${{ github.event.pull_request.base.sha }} \
             ${{ github.event.pull_request.head.sha }} \
             CHANGELOG.md \
-            "$BETA_VERSION"
+            "$BETA_VERSION" > /dev/null 2>&1
 
           echo "📦 Creating GitHub prerelease $BETA_VERSION..."
           gh release create "$BETA_VERSION" \
             --title "$BETA_VERSION" \
             --notes-file CHANGELOG_temp.md \
             --prerelease \
-            --target rc
-        
+            --target rc > /dev/null 2>&1
+          echo "✨ GitHub prerelease $BETA_VERSION created successfully!"
