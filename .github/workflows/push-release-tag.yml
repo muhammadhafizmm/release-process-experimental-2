@@ -101,6 +101,7 @@ jobs:
           echo "🔀 Setting github config..."
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
 
           echo "🍒 Attempting cherry-pick $COMMIT_SHA to main..."
           git fetch origin main
@@ -179,6 +180,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
+          echo "🔀 Checkout to RC"
+          git fetch origin rc
+          git checkout rc
+
           BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
 
           if [[ -z "$BETA_VERSION" ]]; then
