@@ -14,7 +14,7 @@ run-name: >
   ${{
     github.event_name == 'workflow_dispatch' && (
       inputs.run_title != '' && inputs.run_title
-      || format('[RELEASE][TEST] {0}', github.event.head_commit.message)
+      || format('[DEPLOY][TEST] {0}', github.ref_name)
     )
     || github.event_name == 'push' && format('{0}', github.event.head_commit.message)
   }}
