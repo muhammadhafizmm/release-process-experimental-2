@@ -29,7 +29,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -70,14 +69,26 @@ jobs:
 
           rm -f CHANGELOG.md CHANGELOG_temp.md > /dev/null 2>&1
           echo "✨ GitHub release $VERSION created successfully!"
-        
+
+      - name: Trigger Main Workflow Manually
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            echo "🚀 Triggering Production workflow..."
+            gh workflow run build-and-deploy-prod.yml --ref "$VERSION" || echo "⚠️ Failed to trigger production workflow."
+          else
+            echo "🚀 Triggering Staging workflow..."
+            gh workflow run build-and-deploy-stg.yml --ref "$VERSION" || echo "⚠️ Failed to trigger staging workflow."
+          fi
+
   hotfix-cherry-pick-main:
-    needs: [ setup, push-release ]
+    needs: [setup, push-release]
     if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -85,6 +96,7 @@ jobs:
           fetch-depth: 0
 
       - name: Cherry-pick to Main
+        id: cherry_pick
         run: |
           COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
 
@@ -136,15 +148,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
-          gh workflow run build-and-deploy-test.yml --ref main
+          echo "🚀 Triggering test workflow on main branch..."
+          gh workflow run build-and-deploy-test.yml \
+            --ref main \
+            -f run_title="chore: cherry-pick hotfix from $COMMIT_SHA"
 
   hotfix-merge-rc-and-tag:
-    needs: [ setup, push-release ]
+    needs: [setup, push-release]
     if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -195,4 +209,15 @@ jobs:
             --notes-file CHANGELOG_temp.md \
             --prerelease \
             --target rc > /dev/null 2>&1
+
           echo "✨ GitHub prerelease $BETA_VERSION created successfully!"
+      
+      - name: Trigger Staging Workflow
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          echo "🚀 Triggering staging workflow on RC branch..."
+          gh workflow run build-and-deploy-stg.yml \
+            --ref "$BETA_VERSION" \
+            -f run_title="chore: hotfix propagated to rc"
