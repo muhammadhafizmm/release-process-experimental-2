@@ -86,6 +86,7 @@ jobs:
         id: cherry_pick
         run: |
           COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+          echo COMMIT_SHA=$COMMIT_SHA >> "$GITHUB_ENV"
 
           echo "🔧 Configure Git"
           git config user.name "github-actions[bot]"
@@ -136,9 +137,10 @@ jobs:
           GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           echo "🚀 Triggering test workflow on main branch..."
+          echo "Run title: 'cherry-pick hotfix from ${{ steps.cherry_pick.outputs.COMMIT_SHA }}'"
           gh workflow run build-and-deploy-test.yml \
             --ref main \
-            -f run_title="chore: cherry-pick hotfix from $COMMIT_SHA"
+            -f run_title="chore: cherry-pick hotfix from ${{ steps.cherry_pick.outputs.COMMIT_SHA }}" \
 
   hotfix-merge-rc-and-tag:
     needs: [setup, push-release]
