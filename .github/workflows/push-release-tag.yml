@@ -29,7 +29,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-
+    env:
+      GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -54,10 +55,8 @@ jobs:
             ${{ steps.branch_info.outputs.head }} \
             CHANGELOG.md \
             ${{ needs.setup.outputs.version }}
-
+  
       - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           VERSION="${{ needs.setup.outputs.version }}"
           IS_PRODUCTION="${{ github.event.pull_request.base.ref == 'release' }}"
@@ -70,14 +69,13 @@ jobs:
 
           rm -f CHANGELOG.md CHANGELOG_temp.md > /dev/null 2>&1
           echo "✨ GitHub release $VERSION created successfully!"
-        
+
   hotfix-cherry-pick-main:
-    needs: [ setup, push-release ]
+    needs: [setup, push-release]
     if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -85,6 +83,7 @@ jobs:
           fetch-depth: 0
 
       - name: Cherry-pick to Main
+        id: cherry_pick
         run: |
           COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
 
@@ -136,15 +135,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
-          gh workflow run build-and-deploy-test.yml --ref main
+          echo "🚀 Triggering test workflow on main branch..."
+          gh workflow run build-and-deploy-test.yml \
+            --ref main \
+            -f run_title="chore: cherry-pick hotfix from $COMMIT_SHA"
 
   hotfix-merge-rc-and-tag:
-    needs: [ setup, push-release ]
+    needs: [setup, push-release]
     if: startsWith(github.event.pull_request.head.ref, 'hotfix/') && github.event.pull_request.base.ref == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
+    env:
+      GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -173,26 +176,25 @@ jobs:
 
       - name: Create RC Prerelease Tag
         if: success()
-        env:
-          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
-
+      
           if [[ -z "$BETA_VERSION" ]]; then
             echo "::error::Failed to generate version tag."
             exit 1
           fi
-
+      
           node ./scripts/versioning/generate-changelog.js \
             ${{ github.event.pull_request.base.sha }} \
             ${{ github.event.pull_request.head.sha }} \
             CHANGELOG.md \
             "$BETA_VERSION" > /dev/null 2>&1
-
+      
           echo "📦 Creating GitHub prerelease $BETA_VERSION..."
           gh release create "$BETA_VERSION" \
             --title "$BETA_VERSION" \
             --notes-file CHANGELOG_temp.md \
             --prerelease \
             --target rc > /dev/null 2>&1
+      
           echo "✨ GitHub prerelease $BETA_VERSION created successfully!"
