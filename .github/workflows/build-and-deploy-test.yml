@@ -3,8 +3,21 @@ name: Build and Deploy Test
 on:
   push:
     branches:
-      - "main"
+      - 'main'
   workflow_dispatch:
+    inputs:
+      run_title:
+        description: 'Custom run name (optional)'
+        required: false
+
+run-name: >
+  ${{
+    github.event_name == 'workflow_dispatch' && (
+      inputs.run_title != '' && inputs.run_title
+      || format('[RELEASE][TEST] {0}', github.event.head_commit.message)
+    )
+    || github.event_name == 'push' && format('{0}', github.event.head_commit.message)
+  }}
 
 jobs:
   setup:
@@ -12,6 +25,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
+
       - name: Setup Next.js Project
         uses: ./.github/actions/setup-nextjs
 
@@ -22,6 +38,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
+
       - name: Build and Deploy Test
         uses: ./.github/actions/build-and-deploy-nextjs
         with:
