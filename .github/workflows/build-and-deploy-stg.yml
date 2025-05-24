@@ -3,13 +3,7 @@ name: Build and Deploy Staging
 on:
   workflow_dispatch:
 
-run-name: >
-  ${{
-    startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-beta')
-      && format('[RELEASE][STAGING] {0}', github.ref_name)
-      || format('[RELEASE][STAGING] {0}', github.event.head_commit.message)
-  }}
-
+run-name: ${{ format('[RELEASE][STAGING] {0}', github.ref_name) }}
 
 jobs:
   setup:

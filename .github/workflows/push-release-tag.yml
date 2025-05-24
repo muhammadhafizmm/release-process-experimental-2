@@ -29,6 +29,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -54,9 +56,25 @@ jobs:
             CHANGELOG.md \
             ${{ needs.setup.outputs.version }}
 
+      - name: Create and Push Git Tag
+        run: |
+          VERSION="${{ needs.setup.outputs.version }}"
+      
+          echo "🏷️ Creating Git tag $VERSION..."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+          # Create tag if it doesn't already exist
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "⚠️ Tag $VERSION already exists, skipping tag creation."
+          else
+            git tag "$VERSION"
+            git push origin "$VERSION"
+            echo "✅ Tag $VERSION pushed successfully."
+          fi
+          
+
       - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           VERSION="${{ needs.setup.outputs.version }}"
           IS_PRODUCTION="${{ github.event.pull_request.base.ref == 'release' }}"
@@ -72,8 +90,6 @@ jobs:
 
       - name: Trigger Main Workflow Manually
         if: success()
-        env:
-          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           if [ "$IS_PRODUCTION" = "true" ]; then
             echo "🚀 Triggering Production workflow..."
@@ -159,6 +175,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -187,35 +205,44 @@ jobs:
 
       - name: Create RC Prerelease Tag
         if: success()
-        env:
-          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           BETA_VERSION=$(node ./scripts/versioning/generate-version.js patch rc | grep VERSION | cut -d'=' -f2)
-
+      
           if [[ -z "$BETA_VERSION" ]]; then
             echo "::error::Failed to generate version tag."
             exit 1
           fi
-
+      
           node ./scripts/versioning/generate-changelog.js \
             ${{ github.event.pull_request.base.sha }} \
             ${{ github.event.pull_request.head.sha }} \
             CHANGELOG.md \
             "$BETA_VERSION" > /dev/null 2>&1
-
+      
+          echo "🏷️ Creating Git tag $BETA_VERSION..."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+          if git rev-parse "$BETA_VERSION" >/dev/null 2>&1; then
+            echo "⚠️ Tag $BETA_VERSION already exists, skipping tag creation."
+          else
+            git tag "$BETA_VERSION"
+            git push origin "$BETA_VERSION"
+            echo "✅ Tag $BETA_VERSION pushed successfully."
+          fi
+      
           echo "📦 Creating GitHub prerelease $BETA_VERSION..."
           gh release create "$BETA_VERSION" \
             --title "$BETA_VERSION" \
             --notes-file CHANGELOG_temp.md \
             --prerelease \
             --target rc > /dev/null 2>&1
-
+      
           echo "✨ GitHub prerelease $BETA_VERSION created successfully!"
+        
       
       - name: Trigger Staging Workflow
         if: success()
-        env:
-          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           echo "🚀 Triggering staging workflow on RC branch..."
           gh workflow run build-and-deploy-stg.yml \
